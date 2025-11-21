@@ -1,0 +1,3126 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Private Talk - 🔐 E2E Encrypted Messenger</title>
+        <style>
+            * {
+                margin: 0;
+                padding: 0;
+                box-sizing: border-box;
+            }
+
+            body {
+                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                min-height: 100vh;
+                padding: 20px;
+                overflow: hidden;
+            }
+
+            #auth-form {
+                background: white;
+                padding: 30px;
+                border-radius: 12px;
+                box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+                max-width: 400px;
+                margin: 100px auto;
+            }
+
+            #auth-form h2 {
+                color: #667eea;
+                margin-bottom: 10px;
+            }
+
+            #auth-form .subtitle {
+                color: #666;
+                font-size: 0.9em;
+                margin-bottom: 20px;
+            }
+
+            /* Telegram-like layout */
+            #chat-container {
+                display: none;
+                height: calc(100vh - 40px);
+                background: white;
+                border-radius: 12px;
+                box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+                overflow: hidden;
+            }
+
+            #chat-container.active {
+                display: flex;
+            }
+
+            /* Sidebar (chat list) */
+            #sidebar {
+                width: 320px;
+                background: #f6f7f9;
+                border-right: 1px solid #e0e0e0;
+                display: flex;
+                flex-direction: column;
+                flex-shrink: 0;
+            }
+
+            /* Main chat area */
+            #main-area {
+                flex: 1;
+                display: flex;
+                flex-direction: column;
+                background: white;
+            }
+
+            /* Back button (hidden on desktop) */
+            #back-btn {
+                display: none;
+                background: rgba(255,255,255,0.2);
+                border: none;
+                color: white;
+                font-size: 1.5em;
+                cursor: pointer;
+                padding: 0;
+                width: 40px;
+                height: 40px;
+                border-radius: 50%;
+                align-items: center;
+                justify-content: center;
+                margin-right: 10px;
+                transition: background 0.2s;
+            }
+
+            #back-btn:hover {
+                background: rgba(255,255,255,0.3);
+            }
+
+            #back-btn.visible {
+                display: flex;
+            }
+
+            /* Image lightbox modal */
+            #image-lightbox {
+                display: none;
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: rgba(0, 0, 0, 0.9);
+                z-index: 9999;
+                justify-content: center;
+                align-items: center;
+                cursor: zoom-out;
+            }
+
+            #image-lightbox.active {
+                display: flex;
+            }
+
+            #image-lightbox img {
+                max-width: 90%;
+                max-height: 90%;
+                object-fit: contain;
+                border-radius: 8px;
+                box-shadow: 0 10px 50px rgba(0, 0, 0, 0.5);
+                cursor: default;
+            }
+
+            #image-lightbox-close {
+                position: absolute;
+                top: 20px;
+                right: 20px;
+                background: rgba(255, 255, 255, 0.2);
+                border: none;
+                color: white;
+                font-size: 2em;
+                width: 50px;
+                height: 50px;
+                border-radius: 50%;
+                cursor: pointer;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                transition: background 0.2s;
+                backdrop-filter: blur(10px);
+            }
+
+            #image-lightbox-close:hover {
+                background: rgba(255, 255, 255, 0.3);
+            }
+
+            /* Mobile styles */
+            @media (max-width: 768px) {
+                body {
+                    padding: 0;
+                    overflow: hidden;
+                }
+
+                #chat-container {
+                    height: 100vh;
+                    border-radius: 0;
+                    position: relative;
+                    overflow: hidden;
+                    padding-top: env(safe-area-inset-top); /* iOS notch support */
+                }
+
+                /* Fix header visibility */
+                #chat-header {
+                    padding: 15px;
+                    position: sticky;
+                    top: 0;
+                    z-index: 100;
+                }
+
+                #chat-header h3 {
+                    font-size: 1em;
+                }
+
+                /* Mobile: sidebar takes full width, visible by default */
+                #sidebar {
+                    width: 100%;
+                    border-right: none;
+                    position: absolute;
+                    left: 0;
+                    top: 0;
+                    height: 100%;
+                    z-index: 10;
+                    display: flex;
+                }
+
+                /* Mobile: main area takes full width, hidden by default */
+                #main-area {
+                    width: 100%;
+                    position: absolute;
+                    left: 0;
+                    top: 0;
+                    height: 100%;
+                    z-index: 5;
+                    display: none;
+                }
+
+                /* When chat is open on mobile - swap visibility */
+                #chat-container.chat-open #sidebar {
+                    display: none;
+                }
+
+                #chat-container.chat-open #main-area {
+                    display: flex;
+                    z-index: 15;
+                }
+
+                /* Show back button on mobile when chat is open */
+                #chat-container.chat-open #back-btn {
+                    display: flex;
+                }
+
+                /* Adjust header layout for back button */
+                #chat-header h3 {
+                    display: flex;
+                    align-items: center;
+                }
+
+                /* Hide file button text on mobile, show only icon */
+                #file-btn {
+                    padding: 10px;
+                    min-width: auto;
+                }
+
+                /* Adjust input area for mobile */
+                #input-area {
+                    padding: 10px;
+                }
+
+                .input-row {
+                    gap: 5px;
+                }
+
+                #msg-input {
+                    font-size: 16px; /* Prevents zoom on iOS */
+                }
+
+                /* Smaller send button on mobile */
+                #send-btn {
+                    padding: 10px 16px;
+                    font-size: 0.9em;
+                }
+
+                /* Auth form adjustments */
+                #auth-form {
+                    margin: 20px;
+                    max-width: 100%;
+                }
+
+                /* Chat items slightly larger touch targets */
+                .chat-item {
+                    padding: 18px 20px;
+                }
+
+                /* Messages adjustments */
+                #messages {
+                    padding: 15px;
+                }
+
+                .message {
+                    font-size: 0.95em;
+                }
+
+                /* File message adjustments */
+                .file-message {
+                    max-width: 100%;
+                }
+
+                .file-preview img,
+                .file-preview video {
+                    max-height: 250px;
+                }
+            }
+
+            /* Tablet landscape */
+            @media (min-width: 769px) and (max-width: 1024px) {
+                #sidebar {
+                    width: 280px;
+                }
+            }
+
+            #sidebar-header {
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                color: white;
+                padding: 20px;
+                flex-shrink: 0;
+            }
+
+            #sidebar-header h3 {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                font-size: 1.2em;
+                margin-bottom: 8px;
+            }
+
+            .encryption-badge {
+                background: rgba(255,255,255,0.2);
+                padding: 3px 10px;
+                border-radius: 12px;
+                font-size: 0.7em;
+                font-weight: normal;
+            }
+
+            #current-user-info {
+                font-size: 0.9em;
+                margin-top: 8px;
+                opacity: 0.95;
+            }
+
+            .status {
+                display: inline-block;
+                padding: 4px 10px;
+                background: rgba(255,255,255,0.2);
+                border-radius: 12px;
+                font-size: 0.8em;
+                margin-top: 6px;
+            }
+
+            .status.connected {
+                background: rgba(40, 167, 69, 0.3);
+            }
+
+            /* Chat list */
+            #chats-list {
+                flex: 1;
+                overflow-y: auto;
+                padding: 8px 0;
+            }
+
+            .chat-item {
+                padding: 15px 20px;
+                cursor: pointer;
+                transition: background 0.2s;
+                border-bottom: 1px solid #e9ecef;
+                display: flex;
+                align-items: center;
+                gap: 12px;
+            }
+
+            .chat-item:hover {
+                background: #e9ecef;
+            }
+
+            .chat-item.active {
+                background: #d1ecf1;
+                border-left: 4px solid #17a2b8;
+            }
+
+            .chat-item.broadcast {
+                background: #fff3cd;
+            }
+
+            .chat-item.broadcast.active {
+                background: #ffe69c;
+                border-left: 4px solid #ffc107;
+            }
+
+            .chat-avatar {
+                width: 48px;
+                height: 48px;
+                border-radius: 50%;
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                color: white;
+                font-size: 1.3em;
+                flex-shrink: 0;
+            }
+
+            .chat-avatar.broadcast {
+                background: linear-gradient(135deg, #ffc107 0%, #ff9800 100%);
+            }
+
+            .chat-info {
+                flex: 1;
+                min-width: 0;
+            }
+
+            .chat-name {
+                font-weight: 600;
+                font-size: 0.95em;
+                color: #212529;
+                margin-bottom: 4px;
+            }
+
+            .chat-preview {
+                font-size: 0.85em;
+                color: #6c757d;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+            }
+
+            .unread-badge {
+                min-width: 20px;
+                height: 20px;
+                background: #28a745;
+                color: white;
+                border-radius: 10px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 0.75em;
+                font-weight: 600;
+                padding: 0 6px;
+                margin-left: auto;
+                flex-shrink: 0;
+            }
+
+            /* Main chat area */
+            #main-area {
+                flex: 1;
+                display: flex;
+                flex-direction: column;
+                background: white;
+            }
+
+            #chat-header {
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                color: white;
+                padding: 20px;
+                flex-shrink: 0;
+                box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+                position: relative;
+                z-index: 10;
+            }
+
+            #chat-header h3 {
+                display: flex;
+                align-items: center;
+                gap: 10px;
+                font-size: 1.1em;
+                margin: 0;
+            }
+
+            #chat-header .subtitle {
+                font-size: 0.85em;
+                opacity: 0.9;
+                margin-top: 4px;
+            }
+
+            #messages {
+                flex: 1;
+                overflow-y: auto;
+                padding: 20px;
+                background: #f8f9fa;
+            }
+
+            .message {
+                margin-bottom: 15px;
+                padding: 12px;
+                border-radius: 8px;
+                background: white;
+                box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+                animation: slideIn 0.3s ease;
+                position: relative;
+                transition: background-color 0.3s ease;
+            }
+
+            .message:hover .message-actions {
+                opacity: 1;
+                visibility: visible;
+            }
+
+            .message-actions {
+                position: absolute;
+                right: 12px;
+                top: -14px;
+                display: flex;
+                gap: 8px;
+                opacity: 0;
+                visibility: hidden;
+                transition: opacity 0.2s, visibility 0.2s;
+                z-index: 10;
+            }
+
+            .message-action-btn {
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                color: white;
+                border: none;
+                font-size: 0.7em;
+                font-weight: 600;
+                cursor: pointer;
+                padding: 6px 12px;
+                border-radius: 6px;
+                transition: all 0.2s;
+                box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+                white-space: nowrap;
+            }
+
+            .message-action-btn:hover {
+                transform: translateY(-2px);
+                box-shadow: 0 4px 12px rgba(102, 126, 234, 0.5);
+            }
+
+            .message-action-btn:active {
+                transform: translateY(0);
+            }
+
+            /* Audio player styles */
+            .audio-player {
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                padding: 12px;
+                background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+                border-radius: 12px;
+                margin-top: 8px;
+                max-width: 350px;
+            }
+
+            .audio-player button {
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                color: white;
+                border: none;
+                width: 36px;
+                height: 36px;
+                border-radius: 50%;
+                cursor: pointer;
+                font-size: 1em;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                transition: all 0.2s;
+                flex-shrink: 0;
+            }
+
+            .audio-player button:hover {
+                transform: scale(1.1);
+                box-shadow: 0 2px 8px rgba(102, 126, 234, 0.4);
+            }
+
+            .audio-progress {
+                flex: 1;
+                display: flex;
+                flex-direction: column;
+                gap: 4px;
+            }
+
+            .audio-time {
+                display: flex;
+                justify-content: space-between;
+                font-size: 0.7em;
+                color: #666;
+            }
+
+            .audio-seekbar {
+                width: 100%;
+                height: 4px;
+                background: #ddd;
+                border-radius: 2px;
+                cursor: pointer;
+                position: relative;
+            }
+
+            .audio-seekbar-fill {
+                height: 100%;
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                border-radius: 2px;
+                transition: width 0.1s;
+            }
+
+            @keyframes slideIn {
+                from {
+                    opacity: 0;
+                    transform: translateY(10px);
+                }
+                to {
+                    opacity: 1;
+                    transform: translateY(0);
+                }
+            }
+
+            .message.broadcast {
+                background: #fff3cd;
+                border-left: 4px solid #ffc107;
+            }
+
+            .message.private {
+                background: #d1ecf1;
+                border-left: 4px solid #17a2b8;
+            }
+
+            .message.echo {
+                background: #d4edda;
+                border-left: 4px solid #28a745;
+            }
+
+            .message.system {
+                background: #e2e3e5;
+                border-left: 4px solid #6c757d;
+                font-style: italic;
+            }
+
+            .message-header {
+                font-weight: 600;
+                font-size: 0.9em;
+                margin-bottom: 6px;
+                color: #495057;
+                display: flex;
+                align-items: center;
+                gap: 8px;
+            }
+
+            .lock-icon {
+                color: #28a745;
+                font-size: 0.85em;
+            }
+
+            .message-body {
+                color: #212529;
+                word-wrap: break-word;
+            }
+
+            .message-time {
+                font-size: 0.7em;
+                color: #6c757d;
+                margin-top: 6px;
+            }
+
+            /* Input area */
+            #input-area {
+                padding: 20px;
+                background: white;
+                border-top: 2px solid #e9ecef;
+                flex-shrink: 0;
+            }
+
+            /* Reply preview */
+            .reply-preview {
+                display: none;
+                background: #f8f9fa;
+                padding: 10px 15px;
+                border-left: 3px solid #667eea;
+                margin-bottom: 10px;
+                border-radius: 6px;
+                position: relative;
+            }
+
+            .reply-preview.active {
+                display: block;
+            }
+
+            .reply-preview-header {
+                font-size: 0.85em;
+                color: #667eea;
+                font-weight: 600;
+                margin-bottom: 4px;
+            }
+
+            .reply-preview-text {
+                font-size: 0.9em;
+                color: #6c757d;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+            }
+
+            .reply-preview-close {
+                position: absolute;
+                right: 10px;
+                top: 50%;
+                transform: translateY(-50%);
+                background: none;
+                border: none;
+                font-size: 1.2em;
+                color: #6c757d;
+                cursor: pointer;
+                padding: 0;
+                width: 24px;
+                height: 24px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                border-radius: 50%;
+                transition: background 0.2s;
+            }
+
+            .reply-preview-close:hover {
+                background: #e9ecef;
+            }
+
+            /* Message context menu */
+            .message-menu {
+                position: fixed;
+                background: white;
+                border-radius: 8px;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+                padding: 8px 0;
+                z-index: 1000;
+                min-width: 180px;
+                display: none;
+            }
+
+            .message-menu.active {
+                display: block;
+            }
+
+            .message-menu-item {
+                padding: 10px 16px;
+                cursor: pointer;
+                display: flex;
+                align-items: center;
+                gap: 10px;
+                font-size: 0.9em;
+                transition: background 0.2s;
+            }
+
+            .message-menu-item:hover {
+                background: #f8f9fa;
+            }
+
+            .message-menu-icon {
+                font-size: 1.1em;
+            }
+
+            /* Reply indicator in message */
+            .message-reply {
+                background: #f8f9fa;
+                border-left: 3px solid #667eea;
+                padding: 8px 12px;
+                margin-bottom: 8px;
+                border-radius: 6px;
+                font-size: 0.85em;
+                cursor: pointer;
+            }
+
+            .message-reply:hover {
+                background: #e9ecef;
+            }
+
+            .message-reply-from {
+                color: #667eea;
+                font-weight: 600;
+                margin-bottom: 2px;
+            }
+
+            .message-reply-text {
+                color: #6c757d;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+            }
+
+            /* Mobile: hide hover buttons, show context menu */
+            @media (max-width: 768px) {
+                .message-actions {
+                    display: none !important;
+                }
+            }
+
+            /* Forward modal */
+            .forward-modal {
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: rgba(0,0,0,0.5);
+                z-index: 2000;
+                display: none;
+                align-items: center;
+                justify-content: center;
+                padding: 20px;
+            }
+
+            .forward-modal.active {
+                display: flex;
+            }
+
+            .forward-modal-content {
+                background: white;
+                border-radius: 12px;
+                max-width: 400px;
+                width: 100%;
+                max-height: 80vh;
+                overflow: hidden;
+                display: flex;
+                flex-direction: column;
+            }
+
+            .forward-modal-header {
+                padding: 20px;
+                border-bottom: 1px solid #e9ecef;
+            }
+
+            .forward-modal-header h3 {
+                margin: 0;
+                font-size: 1.1em;
+            }
+
+            .forward-modal-list {
+                flex: 1;
+                overflow-y: auto;
+                padding: 10px 0;
+            }
+
+            .forward-chat-item {
+                padding: 15px 20px;
+                cursor: pointer;
+                transition: background 0.2s;
+                display: flex;
+                align-items: center;
+                gap: 12px;
+            }
+
+            .forward-chat-item:hover {
+                background: #f8f9fa;
+            }
+
+            .forward-chat-avatar {
+                width: 40px;
+                height: 40px;
+                border-radius: 50%;
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                color: white;
+                font-size: 1.1em;
+                flex-shrink: 0;
+            }
+
+            .forward-chat-avatar.broadcast {
+                background: linear-gradient(135deg, #ffc107 0%, #ff9800 100%);
+            }
+
+            .forward-chat-name {
+                font-weight: 600;
+                color: #212529;
+            }
+
+            .forward-modal-footer {
+                padding: 15px 20px;
+                border-top: 1px solid #e9ecef;
+                display: flex;
+                justify-content: flex-end;
+            }
+
+            .forward-cancel-btn {
+                background: #e9ecef;
+                color: #495057;
+            }
+
+            .forward-cancel-btn:hover {
+                background: #dee2e6;
+            }
+
+            .input-row {
+                display: flex;
+                gap: 10px;
+                align-items: center;
+            }
+
+            #file-btn {
+                padding: 12px;
+                background: #f8f9fa;
+                border: 2px solid #e9ecef;
+                border-radius: 8px;
+                cursor: pointer;
+                font-size: 1.2em;
+                transition: all 0.2s;
+                flex-shrink: 0;
+            }
+
+            #file-btn:hover {
+                background: #e9ecef;
+                transform: scale(1.1);
+            }
+
+            #file-input {
+                display: none;
+            }
+
+            #msg-input {
+                flex: 1;
+                padding: 12px;
+                border: 2px solid #e9ecef;
+                border-radius: 8px;
+                font-size: 14px;
+                transition: border-color 0.2s;
+                margin: 0;
+            }
+
+            #msg-input:focus {
+                outline: none;
+                border-color: #667eea;
+            }
+
+            #msg-input.drag-over {
+                border-color: #667eea;
+                background: #f0f4ff;
+            }
+
+            /* File upload progress */
+            .file-progress {
+                margin-top: 10px;
+                padding: 10px;
+                background: #f8f9fa;
+                border-radius: 8px;
+                display: none;
+            }
+
+            .file-progress.active {
+                display: block;
+            }
+
+            .file-progress-info {
+                display: flex;
+                justify-content: space-between;
+                font-size: 0.85em;
+                margin-bottom: 5px;
+                color: #6c757d;
+            }
+
+            .file-progress-bar {
+                height: 6px;
+                background: #e9ecef;
+                border-radius: 3px;
+                overflow: hidden;
+            }
+
+            .file-progress-fill {
+                height: 100%;
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                transition: width 0.3s;
+                width: 0%;
+            }
+
+            /* File message */
+            .file-message {
+                max-width: 400px;
+            }
+
+            .file-preview {
+                margin-top: 8px;
+                border-radius: 8px;
+                overflow: hidden;
+                background: #f8f9fa;
+            }
+
+            .file-preview img {
+                width: 100%;
+                max-height: 300px;
+                object-fit: contain;
+                display: block;
+            }
+
+            .file-preview video {
+                width: 100%;
+                max-height: 300px;
+                display: block;
+            }
+
+            .file-info {
+                padding: 10px;
+                background: #f8f9fa;
+                border-radius: 8px;
+                margin-top: 8px;
+                display: flex;
+                align-items: center;
+                gap: 10px;
+            }
+
+            .file-icon {
+                font-size: 2em;
+                flex-shrink: 0;
+            }
+
+            .file-details {
+                flex: 1;
+                min-width: 0;
+            }
+
+            .file-name {
+                font-weight: 600;
+                font-size: 0.9em;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+            }
+
+            .file-size {
+                font-size: 0.8em;
+                color: #6c757d;
+                margin-top: 2px;
+            }
+
+            .file-download-btn {
+                padding: 8px 16px;
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                color: white;
+                border: none;
+                border-radius: 6px;
+                cursor: pointer;
+                font-size: 0.85em;
+                font-weight: 600;
+                transition: transform 0.2s;
+                flex-shrink: 0;
+            }
+
+            .file-download-btn:hover {
+                transform: translateY(-2px);
+            }
+
+            button {
+                padding: 12px 24px;
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                color: white;
+                border: none;
+                border-radius: 8px;
+                cursor: pointer;
+                font-size: 14px;
+                font-weight: 600;
+                transition: transform 0.2s, box-shadow 0.2s;
+            }
+
+            button:hover {
+                transform: translateY(-2px);
+                box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+            }
+
+            button:active {
+                transform: translateY(0);
+            }
+
+            input[type="text"] {
+                width: 100%;
+                padding: 12px;
+                border: 2px solid #e9ecef;
+                border-radius: 8px;
+                font-size: 14px;
+                margin-bottom: 15px;
+                transition: border-color 0.2s;
+            }
+
+            input[type="text"]:focus {
+                outline: none;
+                border-color: #667eea;
+            }
+
+            #auth-status {
+                color: #666;
+                margin-top: 15px;
+                font-size: 0.9em;
+            }
+
+            .loading {
+                display: inline-block;
+                width: 12px;
+                height: 12px;
+                border: 2px solid #667eea;
+                border-radius: 50%;
+                border-top-color: transparent;
+                animation: spin 0.8s linear infinite;
+                margin-right: 8px;
+            }
+
+            @keyframes spin {
+                to {
+                    transform: rotate(360deg);
+                }
+            }
+
+            /* Empty state */
+            .empty-state {
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                height: 100%;
+                color: #6c757d;
+                padding: 40px;
+                text-align: center;
+            }
+
+            .empty-state-icon {
+                font-size: 4em;
+                margin-bottom: 20px;
+                opacity: 0.3;
+            }
+
+            .empty-state-text {
+                font-size: 1.1em;
+                margin-bottom: 8px;
+            }
+
+            .empty-state-subtext {
+                font-size: 0.9em;
+                opacity: 0.7;
+            }
+        </style>
+    </head>
+    <body>
+        <!-- Auth form -->
+        <div id="auth-form">
+            <h2>🔐 Private Talk</h2>
+            <p class="subtitle">End-to-end encrypted chat. Server cannot read your messages!</p>
+            <form id="auth-form-element">
+                <input type="text" id="name-input" placeholder="Enter your name..." autocomplete="off" required>
+                <button type="submit" id="connect-btn">Connect</button>
+            </form>
+            <p id="auth-status"></p>
+        </div>
+
+        <!-- Chat (Telegram-like layout) -->
+        <div id="chat-container">
+            <!-- Sidebar -->
+            <div id="sidebar">
+                <div id="sidebar-header">
+                    <h3>
+                        🔐 Private Talk
+                        <span class="encryption-badge">E2E</span>
+                    </h3>
+                    <div id="current-user-info">
+                        You: <strong id="current-user-name"></strong>
+                        <div class="status" id="connection-status">Connecting...</div>
+                    </div>
+                </div>
+
+                <div id="chats-list">
+                    <!-- Chats will be added dynamically -->
+                </div>
+            </div>
+
+            <!-- Main chat area -->
+            <div id="main-area">
+                <div id="chat-header">
+                    <h3 id="chat-title">
+                        <button id="back-btn" title="Back to chats">←</button>
+                        <span id="chat-icon">💬</span>
+                        <span id="chat-name">Select a chat</span>
+                    </h3>
+                    <div class="subtitle" id="chat-subtitle"></div>
+                </div>
+
+                <div id="messages">
+                    <div class="empty-state">
+                        <div class="empty-state-icon">💬</div>
+                        <div class="empty-state-text">Select a chat from the list</div>
+                        <div class="empty-state-subtext">or start chatting with everyone</div>
+                    </div>
+                </div>
+
+                <div id="input-area">
+                    <div class="reply-preview" id="reply-preview">
+                        <div class="reply-preview-header" id="reply-preview-from"></div>
+                        <div class="reply-preview-text" id="reply-preview-text"></div>
+                        <button class="reply-preview-close" id="reply-close">×</button>
+                    </div>
+
+                    <div class="input-row">
+                        <input type="file" id="file-input" accept="*/*">
+                        <button id="file-btn" title="Attach file">📎</button>
+                        <input type="text" id="msg-input" placeholder="Type a message..." autocomplete="off" disabled>
+                        <button id="send-btn" disabled>🔒 Send</button>
+                    </div>
+                    <div class="file-progress" id="file-progress">
+                        <div class="file-progress-info">
+                            <span id="file-progress-name"></span>
+                            <span id="file-progress-percent">0%</span>
+                        </div>
+                        <div class="file-progress-bar">
+                            <div class="file-progress-fill" id="file-progress-fill"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Message context menu -->
+        <div class="message-menu" id="message-menu">
+            <div class="message-menu-item" id="menu-reply">
+                <span class="message-menu-icon">↩️</span>
+                <span>Reply</span>
+            </div>
+            <div class="message-menu-item" id="menu-forward">
+                <span class="message-menu-icon">➡️</span>
+                <span>Forward</span>
+            </div>
+        </div>
+
+        <!-- Forward modal -->
+        <div class="forward-modal" id="forward-modal">
+            <div class="forward-modal-content">
+                <div class="forward-modal-header">
+                    <h3>Forward message</h3>
+                </div>
+                <div class="forward-modal-list" id="forward-list">
+                    <!-- Chats will be added here -->
+                </div>
+                <div class="forward-modal-footer">
+                    <button class="forward-cancel-btn" id="forward-cancel">Cancel</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Image Lightbox -->
+        <div id="image-lightbox">
+            <button id="image-lightbox-close">×</button>
+            <img id="image-lightbox-img" src="" alt="">
+        </div>
+
+        <script>
+            // ==================== SERVER CONFIGURATION ====================
+
+            const SERVER_IP = '11.22.333.444'; // ⚠️ CHANGE THIS to your server IP
+            const SERVER_PORT = '8080';
+            const SERVER_URL = `ws://${SERVER_IP}:${SERVER_PORT}`;
+
+            // ==================== CRYPTO SETUP ====================
+
+            const cryptoSubtle = window.crypto.subtle;
+            const cryptoRandom = window.crypto;
+
+            // Key storage
+            let myKeyPair = null;
+            let myPrivateKey = null;
+            let myPublicKeyJWK = null;
+            const userPublicKeys = new Map(); // Map<userId, CryptoKey>
+
+            // ==================== CRYPTO FUNCTIONS ====================
+
+            async function generateKeyPair() {
+                const keyPair = await cryptoSubtle.generateKey(
+                        {
+                            name: "RSA-OAEP",
+                            modulusLength: 2048,
+                            publicExponent: new Uint8Array([1, 0, 1]),
+                            hash: "SHA-256"
+                        },
+                        true,
+                        ["encrypt", "decrypt"]
+                        );
+                return keyPair;
+            }
+
+            async function exportPublicKey(publicKey) {
+                return await cryptoSubtle.exportKey("jwk", publicKey);
+            }
+
+            async function importPublicKey(jwk) {
+                return await cryptoSubtle.importKey(
+                        "jwk",
+                        jwk,
+                        {
+                            name: "RSA-OAEP",
+                            hash: "SHA-256"
+                        },
+                        true,
+                        ["encrypt"]
+                        );
+            }
+
+            // Hybrid encryption: AES for data + RSA for AES key
+            async function encryptMessage(message, recipientPublicKey) {
+                // 1. Generate random AES key
+                const aesKey = await cryptoSubtle.generateKey(
+                        {
+                            name: "AES-GCM",
+                            length: 256
+                        },
+                        true,
+                        ["encrypt", "decrypt"]
+                        );
+
+                // 2. Encrypt message with AES key (any length!)
+                const encoder = new TextEncoder();
+                const data = encoder.encode(message);
+                const iv = cryptoRandom.getRandomValues(new Uint8Array(12));
+
+                const encryptedData = await cryptoSubtle.encrypt(
+                        {
+                            name: "AES-GCM",
+                            iv: iv
+                        },
+                        aesKey,
+                        data
+                        );
+
+                // 3. Export AES key
+                const exportedAesKey = await cryptoSubtle.exportKey("raw", aesKey);
+
+                // 4. Encrypt AES key with RSA (short, will fit)
+                const encryptedAesKey = await cryptoSubtle.encrypt(
+                        {
+                            name: "RSA-OAEP"
+                        },
+                        recipientPublicKey,
+                        exportedAesKey
+                        );
+
+                // 5. Return everything together
+                return {
+                    encryptedData: arrayBufferToBase64(encryptedData),
+                    encryptedKey: arrayBufferToBase64(encryptedAesKey),
+                    iv: arrayBufferToBase64(iv)
+                };
+            }
+
+            // Decrypt hybrid message
+            async function decryptMessage(encryptedMessage) {
+                // 1. Decrypt AES key with our RSA private key
+                const encryptedAesKey = base64ToArrayBuffer(encryptedMessage.encryptedKey);
+                const aesKeyData = await cryptoSubtle.decrypt(
+                        {
+                            name: "RSA-OAEP"
+                        },
+                        myPrivateKey,
+                        encryptedAesKey
+                        );
+
+                // 2. Import AES key
+                const aesKey = await cryptoSubtle.importKey(
+                        "raw",
+                        aesKeyData,
+                        {
+                            name: "AES-GCM"
+                        },
+                        false,
+                        ["decrypt"]
+                        );
+
+                // 3. Decrypt data with AES key
+                const encryptedData = base64ToArrayBuffer(encryptedMessage.encryptedData);
+                const iv = base64ToArrayBuffer(encryptedMessage.iv);
+
+                const decryptedData = await cryptoSubtle.decrypt(
+                        {
+                            name: "AES-GCM",
+                            iv: iv
+                        },
+                        aesKey,
+                        encryptedData
+                        );
+
+                const decoder = new TextDecoder();
+                return decoder.decode(decryptedData);
+            }
+
+            function arrayBufferToBase64(buffer) {
+                const bytes = new Uint8Array(buffer);
+                let binary = '';
+                for (let i = 0; i < bytes.byteLength; i++) {
+                    binary += String.fromCharCode(bytes[i]);
+                }
+                return btoa(binary);
+            }
+
+            function base64ToArrayBuffer(base64) {
+                const binary = atob(base64);
+                const bytes = new Uint8Array(binary.length);
+                for (let i = 0; i < binary.length; i++) {
+                    bytes[i] = binary.charCodeAt(i);
+                }
+                return bytes.buffer;
+            }
+
+            // ==================== UI ELEMENTS ====================
+
+            const authForm = document.getElementById('auth-form');
+            const authFormElement = document.getElementById('auth-form-element');
+            const chatContainer = document.getElementById('chat-container');
+            const nameInput = document.getElementById('name-input');
+            const connectBtn = document.getElementById('connect-btn');
+            const authStatus = document.getElementById('auth-status');
+            const currentUserName = document.getElementById('current-user-name');
+            const connectionStatus = document.getElementById('connection-status');
+            const chatsList = document.getElementById('chats-list');
+            const chatName = document.getElementById('chat-name');
+            const chatSubtitle = document.getElementById('chat-subtitle');
+            const chatIcon = document.getElementById('chat-icon');
+            const messages = document.getElementById('messages');
+            const msgInput = document.getElementById('msg-input');
+            const sendBtn = document.getElementById('send-btn');
+            const fileInput = document.getElementById('file-input');
+            const fileBtn = document.getElementById('file-btn');
+            const fileProgress = document.getElementById('file-progress');
+            const fileProgressName = document.getElementById('file-progress-name');
+            const fileProgressPercent = document.getElementById('file-progress-percent');
+            const fileProgressFill = document.getElementById('file-progress-fill');
+            const backBtn = document.getElementById('back-btn');
+
+            // Reply/Forward elements
+            const replyPreview = document.getElementById('reply-preview');
+            const replyPreviewFrom = document.getElementById('reply-preview-from');
+            const replyPreviewText = document.getElementById('reply-preview-text');
+            const replyClose = document.getElementById('reply-close');
+            const messageMenu = document.getElementById('message-menu');
+            const menuReply = document.getElementById('menu-reply');
+            const menuForward = document.getElementById('menu-forward');
+            const forwardModal = document.getElementById('forward-modal');
+            const forwardList = document.getElementById('forward-list');
+            const forwardCancel = document.getElementById('forward-cancel');
+
+            let ws = null;
+            let myId = null;
+            let myName = null;
+            let currentChatId = null; // 'all' or userId
+            let allUsers = new Map(); // Map<userId, {name, publicKey}>
+            let chatMessages = new Map(); // Map<chatId, [messages]>
+            let unreadCount = new Map(); // Map<chatId, number> - unread count
+
+            // File transfer
+            const MAX_FILE_SIZE = 128 * 1024 * 1024; // 128 MB
+            const CHUNK_SIZE = 64 * 1024; // 64 KB chunks
+            let fileTransfers = new Map(); // Map<transferId, {chunks, receivedChunks, metadata}>
+
+            // Reply/Forward
+            let replyingTo = null; // {from, body}
+            let selectedMessageForMenu = null;
+
+            // Initialize "Everyone" chat
+            chatMessages.set('all', []);
+
+            // Generate unique message ID (shared across all users)
+            function generateUniqueId() {
+                return `${myId || 'unknown'}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+            }
+
+            // ==================== CONNECTION ====================
+
+            authFormElement.onsubmit = async function (e) {
+                e.preventDefault(); // Prevent page reload
+
+                const name = nameInput.value.trim();
+                if (!name) {
+                    authStatus.innerHTML = '❌ Enter your name!';
+                    return;
+                }
+
+                authStatus.innerHTML = '<span class="loading"></span>Generating encryption keys...';
+                connectBtn.disabled = true;
+
+                try {
+                    myKeyPair = await generateKeyPair();
+                    myPrivateKey = myKeyPair.privateKey;
+                    myPublicKeyJWK = await exportPublicKey(myKeyPair.publicKey);
+
+                    authStatus.innerHTML = '<span class="loading"></span>Connecting to server...';
+
+                    // Connect to WebSocket server
+                    ws = new WebSocket(SERVER_URL);
+
+                    ws.onopen = function () {
+                        console.log('✅ WebSocket connected');
+                        ws.send(JSON.stringify({
+                            type: 'auth',
+                            name: name,
+                            publicKey: myPublicKeyJWK
+                        }));
+                    };
+
+                    ws.onmessage = async function (event) {
+                        const data = JSON.parse(event.data);
+
+                        switch (data.type) {
+                            case 'welcome':
+                                myId = data.id;
+                                myName = data.name;
+                                currentUserName.textContent = myName;
+
+                                authForm.style.display = 'none';
+                                chatContainer.classList.add('active');
+
+                                connectionStatus.textContent = '🟢 Connected';
+                                connectionStatus.classList.add('connected');
+
+                                // Add "Everyone" chat
+                                createBroadcastChat();
+
+                                break;
+
+                            case 'user_list':
+                                await updateUserList(data.users);
+                                break;
+
+                            case 'encrypted_msg':
+                                await handleEncryptedMessage(data);
+                                break;
+
+                            case 'file_start':
+                                await handleFileStart(data);
+                                break;
+
+                            case 'file_chunk':
+                                await handleFileChunk(data);
+                                break;
+
+                            case 'file_complete':
+                                await handleFileComplete(data);
+                                break;
+
+                            case 'error':
+                                addSystemMessage('❌ Error: ' + data.message);
+                                break;
+                        }
+                    };
+
+                    ws.onerror = function (error) {
+                        console.error('WebSocket error:', error);
+                        authStatus.innerHTML = '❌ Connection error!';
+                        connectBtn.disabled = false;
+                    };
+
+                    ws.onclose = function () {
+                        console.log('WebSocket disconnected');
+                        connectionStatus.textContent = '🔴 Disconnected';
+                        connectionStatus.classList.remove('connected');
+                    };
+
+                } catch (error) {
+                    console.error('Crypto error:', error);
+                    authStatus.innerHTML = '❌ Key generation error!';
+                    connectBtn.disabled = false;
+                }
+            };
+
+            // ==================== CHAT MANAGEMENT ====================
+
+            function createBroadcastChat() {
+                const chatItem = document.createElement('div');
+                chatItem.className = 'chat-item broadcast';
+                chatItem.dataset.chatId = 'all';
+                chatItem.innerHTML = `
+              <div class="chat-avatar broadcast">📢</div>
+              <div class="chat-info">
+                <div class="chat-name">Everyone (public chat)</div>
+                <div class="chat-preview">Send message to everyone</div>
+              </div>
+            `;
+
+                chatItem.onclick = () => selectChat('all');
+                chatsList.appendChild(chatItem);
+
+                // Initialize unread counter
+                unreadCount.set('all', 0);
+
+                // Open immediately public chat
+                selectChat('all');
+            }
+
+            function createUserChat(userId, userName) {
+                // Check if chat already exists
+                let chatItem = chatsList.querySelector(`[data-chat-id="${userId}"]`);
+
+                if (!chatItem) {
+                    chatItem = document.createElement('div');
+                    chatItem.className = 'chat-item';
+                    chatItem.dataset.chatId = userId;
+
+                    const initial = userName.charAt(0).toUpperCase();
+                    chatItem.innerHTML = `
+                <div class="chat-avatar">${initial}</div>
+                <div class="chat-info">
+                  <div class="chat-name">${userName}</div>
+                  <div class="chat-preview">Private chat</div>
+                </div>
+              `;
+
+                    chatItem.onclick = () => selectChat(userId);
+                    chatsList.appendChild(chatItem);
+
+                    // Initialize message array and counter for this chat
+                    if (!chatMessages.has(userId)) {
+                        chatMessages.set(userId, []);
+                    }
+                    if (!unreadCount.has(userId)) {
+                        unreadCount.set(userId, 0);
+                    }
+                }
+
+                return chatItem;
+            }
+
+            function selectChat(chatId) {
+                currentChatId = chatId;
+
+                // Remove active from all chats
+                document.querySelectorAll('.chat-item').forEach(item => {
+                    item.classList.remove('active');
+                });
+
+                // Add active to selected
+                const selectedChat = chatsList.querySelector(`[data-chat-id="${chatId}"]`);
+                if (selectedChat) {
+                    selectedChat.classList.add('active');
+                }
+
+                // Reset unread counter for this chat
+                unreadCount.set(chatId, 0);
+                updateUnreadBadge(chatId);
+
+                // Update header
+                if (chatId === 'all') {
+                    chatIcon.textContent = '📢';
+                    chatName.textContent = 'Everyone (public chat)';
+                    chatSubtitle.textContent = 'All participants can see messages';
+                } else {
+                    const user = allUsers.get(chatId);
+                    if (user) {
+                        chatIcon.textContent = '👤';
+                        chatName.textContent = user.name;
+                        chatSubtitle.textContent = '🔒 Private encrypted chat';
+                    }
+                }
+
+                // Show messages for this chat
+                renderMessages(chatId);
+
+                // Enable input
+                msgInput.disabled = false;
+                sendBtn.disabled = false;
+                msgInput.focus();
+
+                // Mobile: open chat (hide sidebar)
+                if (window.innerWidth <= 768) {
+                    chatContainer.classList.add('chat-open');
+                }
+            }
+
+            // Back button - return to chat list on mobile
+            backBtn.onclick = function () {
+                chatContainer.classList.remove('chat-open');
+                currentChatId = null;
+                msgInput.disabled = true;
+                sendBtn.disabled = true;
+            };
+
+            // Close chat on window resize (if became desktop)
+            window.addEventListener('resize', () => {
+                if (window.innerWidth > 768) {
+                    chatContainer.classList.remove('chat-open');
+                }
+            });
+
+            function updateUnreadBadge(chatId) {
+                const chatItem = chatsList.querySelector(`[data-chat-id="${chatId}"]`);
+                if (!chatItem)
+                    return;
+
+                const count = unreadCount.get(chatId) || 0;
+
+                // Remove old badge if exists
+                const oldBadge = chatItem.querySelector('.unread-badge');
+                if (oldBadge) {
+                    oldBadge.remove();
+                }
+
+                // If there are unread - add badge
+                if (count > 0) {
+                    const badge = document.createElement('div');
+                    badge.className = 'unread-badge';
+                    badge.textContent = count > 99 ? '99+' : count;
+                    chatItem.appendChild(badge);
+                }
+            }
+
+            function renderMessages(chatId) {
+                messages.innerHTML = '';
+
+                const msgs = chatMessages.get(chatId) || [];
+
+                // Show greeting only for EMPTY public chat
+                if (msgs.length === 0 && chatId === 'all') {
+                    const welcomeDiv = document.createElement('div');
+                    welcomeDiv.className = 'message system';
+                    welcomeDiv.innerHTML = `
+                <div class="message-header">System</div>
+                <div class="message-body">🔐 Welcome! Your messages are protected end-to-end encryption.</div>
+              `;
+                    messages.appendChild(welcomeDiv);
+                    return;
+                }
+
+                // Show "Start conversation" only for EMPTY private chats
+                if (msgs.length === 0 && chatId !== 'all') {
+                    messages.innerHTML = `
+                <div class="empty-state">
+                  <div class="empty-state-icon">💬</div>
+                  <div class="empty-state-text">Start conversation</div>
+                  <div class="empty-state-subtext">Send your first message</div>
+                </div>
+              `;
+                    return;
+                }
+
+                // Display messages
+                msgs.forEach(msg => {
+                    if (msg.system) {
+                        // System message
+                        const msgDiv = document.createElement('div');
+                        msgDiv.className = 'message system';
+                        if (msg.ts) {
+                            msgDiv.id = `msg-${msg.ts}`;
+                        }
+                        msgDiv.innerHTML = `
+                  <div class="message-header">System</div>
+                  <div class="message-body">${escapeHtml(msg.body)}</div>
+                `;
+                        messages.appendChild(msgDiv);
+                    } else if (msg.isFile || msg.fileData) {
+                        // File
+                        displayFileMessage(msg);
+                    } else {
+                        // Regular message
+                        displayMessageInChat(msg);
+                    }
+                });
+
+                messages.scrollTop = messages.scrollHeight;
+            }
+
+            // ==================== MESSAGING ====================
+
+            sendBtn.onclick = sendMessage;
+            msgInput.onkeypress = function (e) {
+                if (e.key === 'Enter') {
+                    sendMessage();
+                }
+            };
+
+            // ==================== FILE HANDLING ====================
+
+            fileBtn.onclick = () => fileInput.click();
+
+            fileInput.onchange = async function (e) {
+                const file = e.target.files[0];
+                if (!file)
+                    return;
+
+                await handleFileSend(file);
+                fileInput.value = ''; // Reset
+            };
+
+            // Drag and drop
+            msgInput.ondragover = (e) => {
+                e.preventDefault();
+                msgInput.classList.add('drag-over');
+            };
+
+            msgInput.ondragleave = () => {
+                msgInput.classList.remove('drag-over');
+            };
+
+            msgInput.ondrop = async (e) => {
+                e.preventDefault();
+                msgInput.classList.remove('drag-over');
+
+                const file = e.dataTransfer.files[0];
+                if (file) {
+                    await handleFileSend(file);
+                }
+            };
+
+            async function handleFileSend(file, isForwarding = false) {
+                if (!currentChatId || !ws || ws.readyState !== WebSocket.OPEN) {
+                    addSystemMessage('❌ Select a chat to send file');
+                    return;
+                }
+
+                // Check file size
+                if (file.size > MAX_FILE_SIZE) {
+                    addSystemMessage(`❌ File too large! Maximum ${MAX_FILE_SIZE / 1024 / 1024} MB`);
+                    return;
+                }
+
+                console.log('📎 Sending file:', file.name, formatFileSize(file.size));
+
+                const transferId = Math.random().toString(36).slice(2);
+                const recipientId = currentChatId === 'all' ? 'all' : currentChatId;
+
+                // Show progress only if not forwarding
+                if (!isForwarding) {
+                    fileProgress.classList.add('active');
+                    fileProgressName.textContent = file.name;
+                    fileProgressPercent.textContent = '0%';
+                    fileProgressFill.style.width = '0%';
+                }
+
+                try {
+                    // Read file
+                    const arrayBuffer = await file.arrayBuffer();
+                    const totalChunks = Math.ceil(arrayBuffer.byteLength / CHUNK_SIZE);
+
+                    // Generate unique ID for this file
+                    const uniqueId = generateUniqueId();
+                    console.log('📎 Generated uniqueId for file:', uniqueId);
+
+                    // Send metadata first
+                    const metadata = {
+                        transferId,
+                        fileName: file.name,
+                        fileSize: file.size,
+                        fileType: file.type,
+                        totalChunks,
+                        uniqueId: uniqueId // Add uniqueId to metadata
+                    };
+
+                    if (recipientId === 'all') {
+                        // Broadcast file metadata
+                        const encryptedMetadata = {};
+                        for (const [userId, publicKey] of userPublicKeys.entries()) {
+                            encryptedMetadata[userId] = await encryptMessage(JSON.stringify(metadata), publicKey);
+                        }
+
+                        ws.send(JSON.stringify({
+                            type: 'file_start',
+                            to: 'all',
+                            encryptedMetadata
+                        }));
+                    } else {
+                        // Private file
+                        const recipientKey = userPublicKeys.get(recipientId);
+                        if (!recipientKey) {
+                            throw new Error('Recipient key not found');
+                        }
+
+                        const encryptedMetadata = await encryptMessage(JSON.stringify(metadata), recipientKey);
+
+                        ws.send(JSON.stringify({
+                            type: 'file_start',
+                            to: recipientId,
+                            encrypted: encryptedMetadata
+                        }));
+                    }
+
+                    // Send chunks
+                    for (let i = 0; i < totalChunks; i++) {
+                        const start = i * CHUNK_SIZE;
+                        const end = Math.min(start + CHUNK_SIZE, arrayBuffer.byteLength);
+                        const chunk = arrayBuffer.slice(start, end);
+
+                        // Convert to base64
+                        const chunkBase64 = arrayBufferToBase64(chunk);
+
+                        // Encrypt chunk
+                        if (recipientId === 'all') {
+                            const encryptedChunks = {};
+                            for (const [userId, publicKey] of userPublicKeys.entries()) {
+                                encryptedChunks[userId] = await encryptMessage(chunkBase64, publicKey);
+                            }
+
+                            ws.send(JSON.stringify({
+                                type: 'file_chunk',
+                                transferId,
+                                chunkIndex: i,
+                                to: 'all',
+                                encryptedChunks
+                            }));
+                        } else {
+                            const recipientKey = userPublicKeys.get(recipientId);
+                            const encryptedChunk = await encryptMessage(chunkBase64, recipientKey);
+
+                            ws.send(JSON.stringify({
+                                type: 'file_chunk',
+                                transferId,
+                                chunkIndex: i,
+                                to: recipientId,
+                                encrypted: encryptedChunk
+                            }));
+                        }
+
+                        // Update progress only if not forwarding
+                        if (!isForwarding) {
+                            const progress = Math.round(((i + 1) / totalChunks) * 100);
+                            fileProgressPercent.textContent = progress + '%';
+                            fileProgressFill.style.width = progress + '%';
+                        }
+
+                        // Small delay to not overwhelm the connection
+                        await new Promise(resolve => setTimeout(resolve, 10));
+                    }
+
+                    // Send completion
+                    if (recipientId === 'all') {
+                        ws.send(JSON.stringify({
+                            type: 'file_complete',
+                            transferId,
+                            to: 'all'
+                        }));
+                    } else {
+                        ws.send(JSON.stringify({
+                            type: 'file_complete',
+                            transferId,
+                            to: recipientId
+                        }));
+                    }
+
+                    console.log('✅ File sent successfully');
+
+                    // Hide progress
+                    if (!isForwarding) {
+                        setTimeout(() => {
+                            fileProgress.classList.remove('active');
+                        }, 1000);
+                    }
+
+                    // Show in chat (echo) ONLY if not forwarding
+                    if (!isForwarding) {
+                        const fileMsg = {
+                            from: myName,
+                            fileName: file.name,
+                            fileSize: file.size,
+                            fileType: file.type,
+                            fileData: arrayBuffer,
+                            echo: true,
+                            ts: Date.now(),
+                            uniqueId: metadata.uniqueId, // Add uniqueId from metadata
+                            to: currentChatId === 'all' ? 'Everyone' : (allUsers.get(currentChatId)?.name || 'Unknown')
+                        };
+
+                        displayFileMessage(fileMsg);
+
+                        // IMPORTANT FIX: Save sent file to chat history
+                        addMessageToChat(currentChatId, {...fileMsg, isFile: true});
+
+                        // Update chat preview
+                        updateChatPreview(currentChatId, `📎 ${file.name}`);
+                    }
+
+                } catch (error) {
+                    console.error('❌ File send error:', error);
+                    addSystemMessage('❌ File send error');
+                    if (!isForwarding) {
+                        fileProgress.classList.remove('active');
+                    }
+            }
+            }
+
+            function formatFileSize(bytes) {
+                if (bytes < 1024)
+                    return bytes + ' B';
+                if (bytes < 1024 * 1024)
+                    return (bytes / 1024).toFixed(1) + ' KB';
+                return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+            }
+
+            function getFileIcon(fileType) {
+                if (fileType.startsWith('image/'))
+                    return '🖼️';
+                if (fileType.startsWith('video/'))
+                    return '🎥';
+                if (fileType.startsWith('audio/'))
+                    return '🎵';
+                if (fileType.includes('pdf'))
+                    return '📄';
+                if (fileType.includes('zip') || fileType.includes('rar'))
+                    return '📦';
+                if (fileType.includes('word') || fileType.includes('document'))
+                    return '📝';
+                if (fileType.includes('sheet') || fileType.includes('excel'))
+                    return '📊';
+                return '📎';
+            }
+
+            function displayFileMessage(data) {
+                // Remove empty state if present
+                const emptyState = messages.querySelector('.empty-state');
+                if (emptyState) {
+                    emptyState.remove();
+                }
+
+                const msgDiv = document.createElement('div');
+                msgDiv.className = 'message file-message';
+
+                // Add unique ID to message for reply scrolling
+                const msgId = `msg-${data.ts}`;
+                msgDiv.id = msgId;
+
+                // Add data-unique-id for cross-user reply functionality
+                if (data.uniqueId) {
+                    msgDiv.dataset.uniqueId = data.uniqueId;
+                    console.log('✅ File element - Added data-unique-id:', data.uniqueId);
+                } else {
+                    console.warn('⚠️ File element - No uniqueId!', data);
+                }
+
+                if (data.echo) {
+                    msgDiv.classList.add('echo');
+                } else if (data.broadcast) {
+                    msgDiv.classList.add('broadcast');
+                } else {
+                    msgDiv.classList.add('private');
+                }
+
+                const header = data.echo ? `You → ${data.to || 'Everyone'}` : data.from;
+                const time = new Date(data.ts).toLocaleTimeString('en-US');
+
+                let previewHtml = '';
+
+                // Image preview
+                if (data.fileType.startsWith('image/') && data.fileData) {
+                    const blob = new Blob([data.fileData], {type: data.fileType});
+                    const url = URL.createObjectURL(blob);
+                    previewHtml = `
+                <div class="file-preview">
+                  <img src="${url}" alt="${escapeHtml(data.fileName)}">
+                </div>
+              `;
+                }
+
+                // Video preview
+                else if (data.fileType.startsWith('video/') && data.fileData) {
+                    const blob = new Blob([data.fileData], {type: data.fileType});
+                    const url = URL.createObjectURL(blob);
+                    previewHtml = `
+                <div class="file-preview">
+                  <video controls>
+                    <source src="${url}" type="${data.fileType}">
+                  </video>
+                </div>
+              `;
+                }
+
+                // Audio player
+                else if (data.fileType.startsWith('audio/') && data.fileData) {
+                    const blob = new Blob([data.fileData], {type: data.fileType});
+                    const url = URL.createObjectURL(blob);
+                    const audioId = 'audio-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+                    previewHtml = `
+                <div class="audio-player">
+                  <button class="audio-play-btn" onclick="toggleAudio('${audioId}')">▶️</button>
+                  <div class="audio-progress">
+                    <div class="audio-time">
+                      <span class="audio-current">0:00</span>
+                      <span class="audio-duration">0:00</span>
+                    </div>
+                    <div class="audio-seekbar" onclick="seekAudio(event, '${audioId}')">
+                      <div class="audio-seekbar-fill"></div>
+                    </div>
+                  </div>
+                  <audio id="${audioId}" src="${url}" preload="metadata"></audio>
+                </div>
+              `;
+                }
+
+                // File info + download button
+                const downloadBtnHtml = data.fileData ? `
+              <button class="file-download-btn" onclick="downloadFile('${escapeHtml(data.fileName)}', '${data.fileType}', this)">
+                💾 Download
+              </button>
+            ` : '';
+
+                // Action buttons (Forward/Reply)
+                const actionsHtml = `
+              <div class="message-actions">
+                <button class="message-action-btn" onclick="replyToMessage(this)">Reply</button>
+                <button class="message-action-btn" onclick="forwardFromMessage(this)">Forward</button>
+              </div>
+            `;
+
+                msgDiv.innerHTML = `
+              ${actionsHtml}
+              <div class="message-header">
+                <span class="lock-icon">🔒</span>
+                ${header}
+              </div>
+              ${previewHtml}
+              <div class="file-info">
+                <div class="file-icon">${getFileIcon(data.fileType)}</div>
+                <div class="file-details">
+                  <div class="file-name">${escapeHtml(data.fileName)}</div>
+                  <div class="file-size">${formatFileSize(data.fileSize)}</div>
+                </div>
+                ${downloadBtnHtml}
+              </div>
+              <div class="message-time">${time}</div>
+            `;
+
+                // Store file data for download
+                if (data.fileData) {
+                    const downloadBtn = msgDiv.querySelector('.file-download-btn');
+                    if (downloadBtn) {
+                        downloadBtn._fileData = data.fileData;
+                    }
+                }
+
+                // Initialize audio player if present
+                const audioEl = msgDiv.querySelector('audio');
+                if (audioEl) {
+                    audioEl.addEventListener('loadedmetadata', () => {
+                        const durationSpan = msgDiv.querySelector('.audio-duration');
+                        if (durationSpan) {
+                            durationSpan.textContent = formatTime(audioEl.duration);
+                        }
+                    });
+
+                    audioEl.addEventListener('timeupdate', () => {
+                        const currentSpan = msgDiv.querySelector('.audio-current');
+                        const fill = msgDiv.querySelector('.audio-seekbar-fill');
+                        if (currentSpan && fill) {
+                            currentSpan.textContent = formatTime(audioEl.currentTime);
+                            const percent = (audioEl.currentTime / audioEl.duration) * 100;
+                            fill.style.width = percent + '%';
+                        }
+                    });
+
+                    audioEl.addEventListener('ended', () => {
+                        const playBtn = msgDiv.querySelector('.audio-play-btn');
+                        if (playBtn) {
+                            playBtn.textContent = '▶️';
+                        }
+                    });
+                }
+
+                // Add click handler for images to open in lightbox
+                const imgElement = msgDiv.querySelector('.file-preview img');
+                if (imgElement) {
+                    imgElement.style.cursor = 'pointer';
+                    imgElement.onclick = function() {
+                        openImageLightbox(this.src);
+                    };
+                }
+
+                messages.appendChild(msgDiv);
+                messages.scrollTop = messages.scrollHeight;
+            }
+
+            // Global function for download button
+            window.downloadFile = function (fileName, fileType, btnElement) {
+                const fileData = btnElement._fileData;
+                if (!fileData) {
+                    console.error('No file data');
+                    return;
+                }
+
+                const blob = new Blob([fileData], {type: fileType});
+                const url = URL.createObjectURL(blob);
+
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = fileName;
+                a.click();
+
+                URL.revokeObjectURL(url);
+            };
+
+            // Audio player functions
+            window.toggleAudio = function (audioId) {
+                const audio = document.getElementById(audioId);
+                const btn = audio.parentElement.querySelector('.audio-play-btn');
+
+                if (audio.paused) {
+                    audio.play();
+                    btn.textContent = '⏸️';
+                } else {
+                    audio.pause();
+                    btn.textContent = '▶️';
+                }
+            };
+
+            window.seekAudio = function (event, audioId) {
+                const audio = document.getElementById(audioId);
+                const seekbar = event.currentTarget;
+                const rect = seekbar.getBoundingClientRect();
+                const percent = (event.clientX - rect.left) / rect.width;
+                audio.currentTime = percent * audio.duration;
+            };
+
+            window.formatTime = function (seconds) {
+                if (isNaN(seconds))
+                    return '0:00';
+                const mins = Math.floor(seconds / 60);
+                const secs = Math.floor(seconds % 60);
+                return mins + ':' + (secs < 10 ? '0' : '') + secs;
+            };
+
+            // ==================== REPLY / FORWARD ====================
+
+            // Global functions for hover buttons
+            window.replyToMessage = function (btn) {
+                const messageEl = btn.closest('.message');
+                if (!messageEl)
+                    return;
+
+                // Check if it's a file message
+                const fileName = messageEl.querySelector('.file-name')?.textContent;
+                const messageBody = messageEl.querySelector('.message-body')?.textContent;
+
+                // Get unique message ID (shared across all users)
+                const uniqueId = messageEl.dataset.uniqueId || null;
+
+                replyingTo = {
+                    from: messageEl.querySelector('.message-header')?.textContent.trim().replace('🔒', '').trim(),
+                    body: fileName ? `📎 ${fileName}` : (messageBody || ''),
+                    uniqueId: uniqueId // Use uniqueId instead of local messageId
+                };
+
+                replyPreviewFrom.textContent = replyingTo.from;
+                replyPreviewText.textContent = replyingTo.body;
+                replyPreview.classList.add('active');
+                msgInput.focus();
+            };
+
+            window.forwardFromMessage = function (btn) {
+                const messageEl = btn.closest('.message');
+                if (!messageEl)
+                    return;
+
+                // Check if it's a file message
+                const fileName = messageEl.querySelector('.file-name')?.textContent;
+                const messageBody = messageEl.querySelector('.message-body')?.textContent;
+
+                selectedMessageForMenu = {
+                    element: messageEl,
+                    from: messageEl.querySelector('.message-header')?.textContent.trim().replace('🔒', '').trim(),
+                    body: fileName ? `📎 ${fileName}` : (messageBody || '')
+                };
+
+                showForwardModal();
+            };
+
+            // Show context menu on message long press / right click (mobile)
+            messages.addEventListener('contextmenu', (e) => {
+                e.preventDefault();
+                const messageEl = e.target.closest('.message');
+                if (!messageEl || messageEl.classList.contains('system'))
+                    return;
+
+                selectedMessageForMenu = {
+                    element: messageEl,
+                    from: messageEl.querySelector('.message-header')?.textContent.trim(),
+                    body: messageEl.querySelector('.message-body')?.textContent.trim()
+                };
+
+                showMessageMenu(e.clientX, e.clientY);
+            });
+
+            // Touch events for mobile long press
+            let touchTimer;
+            messages.addEventListener('touchstart', (e) => {
+                const messageEl = e.target.closest('.message');
+                if (!messageEl || messageEl.classList.contains('system'))
+                    return;
+
+                touchTimer = setTimeout(() => {
+                    selectedMessageForMenu = {
+                        element: messageEl,
+                        from: messageEl.querySelector('.message-header')?.textContent.trim(),
+                        body: messageEl.querySelector('.message-body')?.textContent.trim()
+                    };
+
+                    const touch = e.touches[0];
+                    showMessageMenu(touch.clientX, touch.clientY);
+                }, 500);
+            });
+
+            messages.addEventListener('touchend', () => {
+                clearTimeout(touchTimer);
+            });
+
+            messages.addEventListener('touchmove', () => {
+                clearTimeout(touchTimer);
+            });
+
+            function showMessageMenu(x, y) {
+                messageMenu.style.left = x + 'px';
+                messageMenu.style.top = y + 'px';
+                messageMenu.classList.add('active');
+            }
+
+            // Hide menu on click outside
+            document.addEventListener('click', (e) => {
+                if (!messageMenu.contains(e.target)) {
+                    messageMenu.classList.remove('active');
+                }
+            });
+
+            // Reply button
+            menuReply.onclick = () => {
+                if (!selectedMessageForMenu)
+                    return;
+
+                replyingTo = {
+                    from: selectedMessageForMenu.from,
+                    body: selectedMessageForMenu.body
+                };
+
+                replyPreviewFrom.textContent = replyingTo.from;
+                replyPreviewText.textContent = replyingTo.body;
+                replyPreview.classList.add('active');
+
+                messageMenu.classList.remove('active');
+                msgInput.focus();
+            };
+
+            // Close reply preview
+            replyClose.onclick = () => {
+                replyingTo = null;
+                replyPreview.classList.remove('active');
+            };
+
+            // Forward button
+            menuForward.onclick = () => {
+                if (!selectedMessageForMenu)
+                    return;
+
+                showForwardModal();
+                messageMenu.classList.remove('active');
+            };
+
+            function showForwardModal() {
+                // Build chat list
+                forwardList.innerHTML = '';
+
+                // Add "Everyone" option
+                const allItem = document.createElement('div');
+                allItem.className = 'forward-chat-item';
+                allItem.innerHTML = `
+              <div class="forward-chat-avatar broadcast">📢</div>
+              <div class="forward-chat-name">Everyone (public chat)</div>
+            `;
+                allItem.onclick = () => forwardMessage('all');
+                forwardList.appendChild(allItem);
+
+                // Add user chats
+                allUsers.forEach((user, userId) => {
+                    if (userId === myId)
+                        return;
+
+                    const item = document.createElement('div');
+                    item.className = 'forward-chat-item';
+                    const initial = user.name.charAt(0).toUpperCase();
+                    item.innerHTML = `
+                <div class="forward-chat-avatar">${initial}</div>
+                <div class="forward-chat-name">${user.name}</div>
+              `;
+                    item.onclick = () => forwardMessage(userId);
+                    forwardList.appendChild(item);
+                });
+
+                forwardModal.classList.add('active');
+            }
+
+            async function forwardMessage(targetChatId) {
+                if (!selectedMessageForMenu)
+                    return;
+
+                // Check if this is a file message
+                const messageEl = selectedMessageForMenu.element;
+                const isFileMessage = messageEl.querySelector('.file-info') !== null;
+
+                if (isFileMessage) {
+                    // Forward file
+                    const fileName = messageEl.querySelector('.file-name')?.textContent;
+                    const downloadBtn = messageEl.querySelector('.file-download-btn');
+                    const fileData = downloadBtn?._fileData;
+
+                    if (!fileData || !fileName) {
+                        addSystemMessage('❌ Failed to forward file');
+                        return;
+                    }
+
+                    // Get file info from message
+                    const fileSizeText = messageEl.querySelector('.file-size')?.textContent;
+                    const fileSize = parseInt(fileSizeText) || fileData.byteLength;
+
+                    // Determine file type from file info or icon
+                    let fileType = 'application/octet-stream';
+                    const videoEl = messageEl.querySelector('video source');
+                    const imgEl = messageEl.querySelector('.file-preview img');
+                    const audioEl = messageEl.querySelector('audio');
+
+                    if (audioEl) {
+                        fileType = audioEl.getAttribute('src')?.includes('audio/') ? audioEl.src.split(';')[0].split(':')[1] : 'audio/mpeg';
+                        // Better detection from filename
+                        if (fileName.toLowerCase().endsWith('.mp3'))
+                            fileType = 'audio/mpeg';
+                        if (fileName.toLowerCase().endsWith('.wav'))
+                            fileType = 'audio/wav';
+                        if (fileName.toLowerCase().endsWith('.ogg'))
+                            fileType = 'audio/ogg';
+                        if (fileName.toLowerCase().endsWith('.m4a'))
+                            fileType = 'audio/mp4';
+                    } else if (videoEl) {
+                        fileType = videoEl.getAttribute('type') || 'video/mp4';
+                    } else if (imgEl) {
+                        fileType = 'image/jpeg'; // default
+                        if (fileName.toLowerCase().endsWith('.png'))
+                            fileType = 'image/png';
+                        if (fileName.toLowerCase().endsWith('.gif'))
+                            fileType = 'image/gif';
+                        if (fileName.toLowerCase().endsWith('.webp'))
+                            fileType = 'image/webp';
+                    }
+
+                    // Create File object
+                    const file = new File([fileData], fileName, {type: fileType});
+
+                    // Temporarily switch to target chat and send file
+                    const originalChat = currentChatId;
+                    currentChatId = targetChatId;
+
+                    try {
+                        await handleFileSend(file, true); // isForwarding = true
+
+                        // Add forwarded file to target chat history and display
+                        const forwardedFileMsg = {
+                            from: myName,
+                            fileName: file.name,
+                            fileSize: file.size,
+                            fileType: file.type,
+                            fileData: fileData,
+                            echo: true,
+                            ts: Date.now(),
+                            to: allUsers.get(targetChatId)?.name || 'Everyone'
+                        };
+
+                        // Add to target chat messages
+                        addMessageToChat(targetChatId, {...forwardedFileMsg, isFile: true});
+
+                        // If currently viewing target chat, display it
+                        if (currentChatId === targetChatId) {
+                            displayFileMessage(forwardedFileMsg);
+                        }
+
+                        // Update chat preview
+                        updateChatPreview(targetChatId, `📎 ${file.name}`);
+
+                    } catch (error) {
+                        console.error('File forward error:', error);
+                        currentChatId = originalChat;
+                        addSystemMessage('❌ File forward error');
+                        forwardModal.classList.remove('active');
+                        return;
+                    }
+
+                    // Restore original chat and show success
+                    currentChatId = originalChat;
+                    forwardModal.classList.remove('active');
+                    addSystemMessage('✅ File forwarded');
+                    return;
+                }
+
+                // Forward text message
+                const text = selectedMessageForMenu.body;
+
+                try {
+                    if (targetChatId === 'all') {
+                        // Forward to broadcast
+                        const encryptedMessages = {};
+                        for (const [userId, publicKey] of userPublicKeys.entries()) {
+                            encryptedMessages[userId] = await encryptMessage(text, publicKey);
+                        }
+
+                        ws.send(JSON.stringify({
+                            type: 'encrypted_msg',
+                            to: 'all',
+                            encryptedMessages: encryptedMessages,
+                            forwarded: true
+                        }));
+
+                        // Add to broadcast chat history
+                        const forwardedMsg = {
+                            body: text,
+                            from: myName,
+                            echo: true,
+                            broadcast: true,
+                            ts: Date.now(),
+                            to: 'Everyone'
+                        };
+                        addMessageToChat('all', forwardedMsg);
+
+                        // Display if viewing broadcast
+                        if (currentChatId === 'all') {
+                            displayMessageInChat(forwardedMsg);
+                        }
+
+                        // Update preview
+                        updateChatPreview('all', text);
+
+                    } else {
+                        // Forward to private chat
+                        const recipientKey = userPublicKeys.get(targetChatId);
+                        if (!recipientKey) {
+                            addSystemMessage('❌ Recipient key not found');
+                            return;
+                        }
+
+                        const encrypted = await encryptMessage(text, recipientKey);
+
+                        ws.send(JSON.stringify({
+                            type: 'encrypted_msg',
+                            to: targetChatId,
+                            encrypted: encrypted,
+                            forwarded: true
+                        }));
+
+                        // Add to target chat history
+                        const recipientName = allUsers.get(targetChatId)?.name || 'Unknown';
+                        const forwardedMsg = {
+                            body: text,
+                            from: myName,
+                            echo: true,
+                            ts: Date.now(),
+                            to: recipientName
+                        };
+                        addMessageToChat(targetChatId, forwardedMsg);
+
+                        // Display if viewing target chat
+                        if (currentChatId === targetChatId) {
+                            displayMessageInChat(forwardedMsg);
+                        }
+
+                        // Update preview
+                        updateChatPreview(targetChatId, text);
+                    }
+
+                    forwardModal.classList.remove('active');
+                    addSystemMessage('✅ Message forwarded');
+
+                } catch (error) {
+                    console.error('Forward error:', error);
+                    addSystemMessage('❌ Forward error');
+                    forwardModal.classList.remove('active');
+                }
+            }
+
+            forwardCancel.onclick = () => {
+                forwardModal.classList.remove('active');
+            };
+
+            // Close modal on outside click
+            forwardModal.onclick = (e) => {
+                if (e.target === forwardModal) {
+                    forwardModal.classList.remove('active');
+                }
+            };
+
+            async function sendMessage() {
+                const text = msgInput.value.trim();
+                if (!text || !ws || ws.readyState !== WebSocket.OPEN || !currentChatId) {
+                    return;
+                }
+
+                try {
+                    // Prepare message data with optional reply
+                    const messageData = {
+                        type: 'encrypted_msg',
+                        to: currentChatId === 'all' ? 'all' : currentChatId
+                    };
+
+                    // Add reply info if replying
+                    if (replyingTo) {
+                        messageData.replyTo = replyingTo;
+                    }
+
+                    if (currentChatId === 'all') {
+                        // Broadcast - encrypt for each user
+                        const encryptedMessages = {};
+
+                        console.log('🔐 Encrypting for', userPublicKeys.size, 'users');
+
+                        // Create message with reply
+                        const fullMessage = replyingTo
+                                ? JSON.stringify({text, replyTo: replyingTo})
+                                : text;
+
+                        for (const [userId, publicKey] of userPublicKeys.entries()) {
+                            console.log('  → Encrypting for user', userId);
+                            encryptedMessages[userId] = await encryptMessage(fullMessage, publicKey);
+                        }
+
+                        console.log('✅ Broadcast encrypted, sending...');
+
+                        // Generate unique ID for this message
+                        const uniqueId = generateUniqueId();
+
+                        ws.send(JSON.stringify({
+                            ...messageData,
+                            encryptedMessages: encryptedMessages,
+                            uniqueId: uniqueId // Send uniqueId unencrypted for syncing
+                        }));
+
+                        // Add our message locally
+                        const msg = {
+                            from: myName,
+                            fromId: myId,
+                            body: text,
+                            to: 'Everyone',
+                            ts: Date.now(),
+                            uniqueId: uniqueId,
+                            broadcast: true,
+                            echo: true,
+                            replyTo: replyingTo
+                        };
+
+                        addMessageToChat('all', msg);
+                        displayMessageInChat(msg);
+
+                    } else {
+                        // Private message
+                        const recipientKey = userPublicKeys.get(currentChatId);
+                        const recipientName = allUsers.get(currentChatId)?.name;
+
+                        console.log('🔐 Private message to:', recipientName, 'ID:', currentChatId);
+
+                        if (!recipientKey) {
+                            console.error('❌ No public key for recipient:', currentChatId);
+                            addSystemMessage('❌ Recipient public key not found');
+                            return;
+                        }
+
+                        console.log('  → Encrypting message...');
+
+                        // Create message with reply
+                        const fullMessage = replyingTo
+                                ? JSON.stringify({text, replyTo: replyingTo})
+                                : text;
+
+                        const encrypted = await encryptMessage(fullMessage, recipientKey);
+                        console.log('  → Encrypted:', encrypted);
+
+                        // Generate unique ID for this message
+                        const uniqueId = generateUniqueId();
+
+                        ws.send(JSON.stringify({
+                            ...messageData,
+                            encrypted: encrypted,
+                            uniqueId: uniqueId // Send uniqueId unencrypted for syncing
+                        }));
+
+                        console.log('✅ Private message sent');
+
+                        // Add our message locally
+                        const msg = {
+                            from: myName,
+                            fromId: myId,
+                            body: text,
+                            to: recipientName,
+                            ts: Date.now(),
+                            uniqueId: uniqueId,
+                            broadcast: false,
+                            echo: true,
+                            replyTo: replyingTo
+                        };
+
+                        addMessageToChat(currentChatId, msg);
+                        displayMessageInChat(msg);
+                    }
+
+                    msgInput.value = '';
+
+                    // Clear reply
+                    if (replyingTo) {
+                        replyingTo = null;
+                        replyPreview.classList.remove('active');
+                    }
+
+                } catch (error) {
+                    console.error('❌ Encryption error:', error);
+                    console.error('Error stack:', error.stack);
+                    addSystemMessage('❌ Message encryption error');
+                }
+            }
+
+            async function handleEncryptedMessage(data) {
+                console.log('📨 Received encrypted message:', data.from, 'broadcast:', data.broadcast);
+
+                try {
+                    let decrypted;
+
+                    if (data.encryptedMessages) {
+                        // Broadcast - get our version
+                        console.log('  → Broadcast message, getting our version (myId:', myId, ')');
+                        const ourEncrypted = data.encryptedMessages[myId];
+                        if (!ourEncrypted) {
+                            console.warn('  ⚠️ No encrypted version for us');
+                            return;
+                        }
+                        console.log('  → Our encrypted data:', ourEncrypted);
+                        decrypted = await decryptMessage(ourEncrypted);
+                    } else if (data.encrypted) {
+                        // Private - new format (hybrid encryption)
+                        console.log('  → Private message, decrypting...');
+                        console.log('  → Encrypted data:', data.encrypted);
+                        decrypted = await decryptMessage(data.encrypted);
+                    } else {
+                        console.error('❌ Unknown message format', data);
+                        return;
+                    }
+
+                    console.log('✅ Decrypted:', decrypted);
+
+                    // Parse message (could be JSON with reply info)
+                    let body, replyTo;
+                    try {
+                        const parsed = JSON.parse(decrypted);
+                        if (parsed.text && parsed.replyTo) {
+                            body = parsed.text;
+                            replyTo = parsed.replyTo;
+                        } else {
+                            body = decrypted;
+                        }
+                    } catch {
+                        body = decrypted;
+                    }
+
+                    const msg = {
+                        from: data.from,
+                        fromId: data.fromId,
+                        body: body,
+                        ts: Date.now(), // Use local time instead of server time
+                        uniqueId: data.uniqueId, // Save uniqueId from sender
+                        broadcast: data.broadcast,
+                        replyTo: replyTo
+                    };
+
+                    // Determine, which chat to add message to
+                    const chatId = data.broadcast ? 'all' : data.fromId;
+
+                    // Create chat if not exists (for private)
+                    if (!data.broadcast) {
+                        createUserChat(data.fromId, data.from);
+                    }
+
+                    addMessageToChat(chatId, msg);
+
+                    // If this chat is open - show message
+                    if (currentChatId === chatId) {
+                        displayMessageInChat(msg);
+                    } else {
+                        // Otherwise increment unread counter
+                        const currentCount = unreadCount.get(chatId) || 0;
+                        unreadCount.set(chatId, currentCount + 1);
+                        updateUnreadBadge(chatId);
+
+                        // And update preview
+                        updateChatPreview(chatId, decrypted);
+                    }
+
+                } catch (error) {
+                    console.error('❌ Decryption error:', error);
+                    console.error('Error stack:', error.stack);
+                    addSystemMessage('❌ Message decryption error');
+                }
+            }
+
+            // ==================== FILE RECEIVE HANDLERS ====================
+
+            async function handleFileStart(data) {
+                console.log('📎 File transfer starting');
+
+                try {
+                    let metadataStr;
+
+                    if (data.encryptedMetadata) {
+                        // Broadcast file
+                        const ourEncrypted = data.encryptedMetadata[myId];
+                        if (!ourEncrypted)
+                            return;
+                        metadataStr = await decryptMessage(ourEncrypted);
+                    } else {
+                        // Private file
+                        metadataStr = await decryptMessage(data.encrypted);
+                    }
+
+                    const metadata = JSON.parse(metadataStr);
+                    console.log('  → Metadata:', metadata);
+                    console.log('  → Received file uniqueId:', metadata.uniqueId);
+
+                    // Initialize transfer
+                    fileTransfers.set(metadata.transferId, {
+                        metadata,
+                        chunks: new Array(metadata.totalChunks),
+                        receivedChunks: 0,
+                        from: data.from,
+                        fromId: data.fromId,
+                        broadcast: data.broadcast || false
+                    });
+
+                    // Show progress (if not current chat, will show badge)
+                    if (currentChatId === (data.broadcast ? 'all' : data.fromId)) {
+                        addSystemMessage(`📎 Receiving file: ${metadata.fileName}...`);
+                    }
+
+                } catch (error) {
+                    console.error('❌ File start error:', error);
+                }
+            }
+
+            async function handleFileChunk(data) {
+                const transfer = fileTransfers.get(data.transferId);
+                if (!transfer) {
+                    console.warn('Unknown transfer ID:', data.transferId);
+                    return;
+                }
+
+                try {
+                    let chunkBase64;
+
+                    if (data.encryptedChunks) {
+                        // Broadcast
+                        const ourEncrypted = data.encryptedChunks[myId];
+                        if (!ourEncrypted)
+                            return;
+                        chunkBase64 = await decryptMessage(ourEncrypted);
+                    } else {
+                        // Private
+                        chunkBase64 = await decryptMessage(data.encrypted);
+                    }
+
+                    // Convert base64 to ArrayBuffer
+                    const chunkData = base64ToArrayBuffer(chunkBase64);
+
+                    transfer.chunks[data.chunkIndex] = chunkData;
+                    transfer.receivedChunks++;
+
+                    const progress = Math.round((transfer.receivedChunks / transfer.metadata.totalChunks) * 100);
+                    console.log(`  → Chunk ${data.chunkIndex + 1}/${transfer.metadata.totalChunks} (${progress}%)`);
+
+                } catch (error) {
+                    console.error('❌ File chunk error:', error);
+                }
+            }
+
+            async function handleFileComplete(data) {
+                const transfer = fileTransfers.get(data.transferId);
+                if (!transfer) {
+                    console.warn('Unknown transfer ID:', data.transferId);
+                    return;
+                }
+
+                console.log('✅ File transfer complete');
+
+                try {
+                    // Combine all chunks
+                    const totalSize = transfer.chunks.reduce((sum, chunk) => sum + chunk.byteLength, 0);
+                    const fileData = new Uint8Array(totalSize);
+
+                    let offset = 0;
+                    for (const chunk of transfer.chunks) {
+                        fileData.set(new Uint8Array(chunk), offset);
+                        offset += chunk.byteLength;
+                    }
+
+                    // Determine chat ID
+                    const chatId = transfer.broadcast ? 'all' : transfer.fromId;
+
+                    // Create user chat if needed
+                    if (!transfer.broadcast) {
+                        createUserChat(transfer.fromId, transfer.from);
+                    }
+
+                    // Display file message
+                    const fileMsg = {
+                        from: transfer.from,
+                        fromId: transfer.fromId,
+                        fileName: transfer.metadata.fileName,
+                        fileSize: transfer.metadata.fileSize,
+                        fileType: transfer.metadata.fileType,
+                        fileData: fileData.buffer,
+                        broadcast: transfer.broadcast,
+                        uniqueId: transfer.metadata.uniqueId, // Save uniqueId from metadata
+                        ts: Date.now()
+                    };
+
+                    console.log('📎 File message uniqueId:', fileMsg.uniqueId);
+
+                    // Show in chat if open, otherwise increment unread
+                    if (currentChatId === chatId) {
+                        displayFileMessage(fileMsg);
+                        // IMPORTANT FIX: Save received file to chat history even when chat is open
+                        addMessageToChat(chatId, {...fileMsg, isFile: true});
+                        // Update preview
+                        updateChatPreview(chatId, `📎 ${transfer.metadata.fileName}`);
+                    } else {
+                        // Store message
+                        if (!chatMessages.has(chatId)) {
+                            chatMessages.set(chatId, []);
+                        }
+                        chatMessages.get(chatId).push({...fileMsg, isFile: true});
+
+                        // Increment unread
+                        const currentCount = unreadCount.get(chatId) || 0;
+                        unreadCount.set(chatId, currentCount + 1);
+                        updateUnreadBadge(chatId);
+
+                        // Update preview
+                        updateChatPreview(chatId, `📎 ${transfer.metadata.fileName}`);
+                    }
+
+                    // Cleanup
+                    fileTransfers.delete(data.transferId);
+
+                } catch (error) {
+                    console.error('❌ File complete error:', error);
+                    addSystemMessage('❌ File receive error');
+                }
+            }
+
+            function addMessageToChat(chatId, msg) {
+                if (!chatMessages.has(chatId)) {
+                    chatMessages.set(chatId, []);
+                }
+                chatMessages.get(chatId).push(msg);
+            }
+
+            function displayMessageInChat(data) {
+                // Remove empty state if present
+                const emptyState = messages.querySelector('.empty-state');
+                if (emptyState) {
+                    emptyState.remove();
+                }
+
+                const msgDiv = document.createElement('div');
+                msgDiv.className = 'message';
+
+                // Add unique ID to message for reply scrolling
+                const msgId = `msg-${data.ts}`;
+                msgDiv.id = msgId;
+
+                // Add data-unique-id for cross-user reply functionality
+                if (data.uniqueId) {
+                    msgDiv.dataset.uniqueId = data.uniqueId;
+                }
+
+                // Don't add actions to system messages
+                const isSystem = data.system || false;
+
+                let header = '';
+                if (data.echo) {
+                    msgDiv.classList.add('echo');
+                    header = data.to ? `You → ${data.to}` : 'You → Everyone';
+                } else if (data.broadcast) {
+                    msgDiv.classList.add('broadcast');
+                    header = `${data.from} (everyone)`;
+                } else {
+                    msgDiv.classList.add('private');
+                    header = data.from || 'Unknown';
+                }
+
+                const time = new Date(data.ts).toLocaleTimeString('en-US');
+
+                // Reply quote HTML with click handler to scroll to original message
+                let replyHtml = '';
+                if (data.replyTo) {
+                    const replyToUniqueId = data.replyTo.uniqueId || '';
+                    const onclickAttr = replyToUniqueId ? `onclick="scrollToMessageByUniqueId('${replyToUniqueId}')"` : '';
+                    replyHtml = `
+                <div class="message-reply" ${onclickAttr}>
+                  <div class="message-reply-from">${escapeHtml(data.replyTo.from)}</div>
+                  <div class="message-reply-text">${escapeHtml(data.replyTo.body)}</div>
+                </div>
+              `;
+                }
+
+                // Action buttons HTML (desktop only, hidden on mobile)
+                let actionsHtml = '';
+                if (!isSystem) {
+                    actionsHtml = `
+                <div class="message-actions">
+                  <button class="message-action-btn" onclick="replyToMessage(this)">Reply</button>
+                  <button class="message-action-btn" onclick="forwardFromMessage(this)">Forward</button>
+                </div>
+              `;
+                }
+
+                msgDiv.innerHTML = `
+              ${actionsHtml}
+              <div class="message-header">
+                <span class="lock-icon">🔒</span>
+                ${header}
+              </div>
+              ${replyHtml}
+              <div class="message-body">${escapeHtml(data.body)}</div>
+              <div class="message-time">${time}</div>
+            `;
+
+                messages.appendChild(msgDiv);
+                messages.scrollTop = messages.scrollHeight;
+            }
+
+            function addSystemMessage(text) {
+                const msgDiv = document.createElement('div');
+                msgDiv.className = 'message system';
+                msgDiv.innerHTML = `
+              <div class="message-header">System</div>
+              <div class="message-body">${escapeHtml(text)}</div>
+            `;
+                messages.appendChild(msgDiv);
+                messages.scrollTop = messages.scrollHeight;
+
+                // Add to current chat
+                if (currentChatId) {
+                    addMessageToChat(currentChatId, {
+                        body: text,
+                        ts: Date.now(),
+                        system: true
+                    });
+                }
+            }
+
+            function updateChatPreview(chatId, text) {
+                const chatItem = chatsList.querySelector(`[data-chat-id="${chatId}"]`);
+                if (chatItem) {
+                    const preview = chatItem.querySelector('.chat-preview');
+                    if (preview) {
+                        preview.textContent = text.substring(0, 30) + (text.length > 30 ? '...' : '');
+                    }
+                }
+            }
+
+            // ==================== USER LIST ====================
+
+            async function updateUserList(users) {
+                userPublicKeys.clear();
+                allUsers.clear();
+
+                for (const user of users) {
+                    if (user.id !== myId) {
+                        try {
+                            const publicKey = await importPublicKey(user.publicKey);
+                            userPublicKeys.set(user.id, publicKey);
+                            allUsers.set(user.id, {name: user.name, publicKey: user.publicKey});
+
+                            // Create chat for user (if not exists)
+                            createUserChat(user.id, user.name);
+                        } catch (error) {
+                            console.error('Error importing public key for', user.name, error);
+                        }
+                    } else {
+                        allUsers.set(user.id, {name: user.name, publicKey: user.publicKey});
+                    }
+                }
+
+                // Remove chats for disconnected users
+                const allChatItems = chatsList.querySelectorAll('.chat-item:not(.broadcast)');
+                allChatItems.forEach(item => {
+                    const userId = item.dataset.chatId;
+                    if (!allUsers.has(userId) || userId === myId) {
+                        item.remove();
+                    }
+                });
+            }
+
+            // Scroll to message when clicking reply quote (using uniqueId for cross-user sync)
+            window.scrollToMessageByUniqueId = function (uniqueId) {
+                const targetMsg = document.querySelector(`[data-unique-id="${uniqueId}"]`);
+                if (targetMsg) {
+                    targetMsg.scrollIntoView({behavior: 'smooth', block: 'center'});
+                    // Add highlight animation
+                    targetMsg.style.backgroundColor = 'rgba(102, 126, 234, 0.2)';
+                    setTimeout(() => {
+                        targetMsg.style.backgroundColor = '';
+                    }, 1500);
+                }
+            };
+
+            // Scroll to message by local ID (backup method)
+            window.scrollToMessage = function (messageId) {
+                const targetMsg = document.getElementById(messageId);
+                if (targetMsg) {
+                    targetMsg.scrollIntoView({behavior: 'smooth', block: 'center'});
+                    // Add highlight animation
+                    targetMsg.style.backgroundColor = 'rgba(102, 126, 234, 0.2)';
+                    setTimeout(() => {
+                        targetMsg.style.backgroundColor = '';
+                    }, 1500);
+                }
+            };
+
+            function escapeHtml(text) {
+                const div = document.createElement('div');
+                div.textContent = text;
+                return div.innerHTML;
+            }
+
+            // ==================== IMAGE LIGHTBOX ====================
+
+            const imageLightbox = document.getElementById('image-lightbox');
+            const imageLightboxImg = document.getElementById('image-lightbox-img');
+            const imageLightboxClose = document.getElementById('image-lightbox-close');
+
+            // Open image in lightbox
+            window.openImageLightbox = function(imageSrc) {
+                imageLightboxImg.src = imageSrc;
+                imageLightbox.classList.add('active');
+                // Prevent body scroll when lightbox is open
+                document.body.style.overflow = 'hidden';
+            };
+
+            // Close lightbox
+            function closeLightbox() {
+                imageLightbox.classList.remove('active');
+                imageLightboxImg.src = '';
+                document.body.style.overflow = '';
+            }
+
+            // Close on click outside image
+            imageLightbox.onclick = function(e) {
+                if (e.target === imageLightbox) {
+                    closeLightbox();
+                }
+            };
+
+            // Close button
+            imageLightboxClose.onclick = function(e) {
+                e.stopPropagation();
+                closeLightbox();
+            };
+
+            // Close on Escape key
+            document.addEventListener('keydown', function(e) {
+                if (e.key === 'Escape' && imageLightbox.classList.contains('active')) {
+                    closeLightbox();
+                }
+            });
+
+            // ==================== INIT ====================
+
+            nameInput.focus();
+
+            console.log('🔐 Private Talk - E2E Encrypted Messenger');
+            console.log('Your private key never leaves this browser!');
+        </script>
+    </body>
+</html>
